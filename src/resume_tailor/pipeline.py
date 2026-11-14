@@ -61,15 +61,18 @@ def run(
         if audit:
             audit_path.write_text(audit + "\n", encoding="utf-8")
 
-    state = {"resume": None, "audit": ""}
+    state = {"resume": None, "audit": "", "feedback": None}
 
     def evaluate() -> str:
         log("Hiring manager evaluating")
-        return ask(
+        # Follow-up evaluations see the previous one, so ratings stay consistent between rounds
+        feedback = ask(
             prompts.HIRING_MANAGER_SYSTEM,
-            prompts.hiring_manager_prompt(job_description, state["resume"], truth),
+            prompts.hiring_manager_prompt(job_description, state["resume"], truth, state["feedback"]),
             review_model,
         )
+        state["feedback"] = feedback
+        return feedback
 
     def revise(feedback: str, with_audit: bool = True) -> None:
         log("Editor writing the resume")

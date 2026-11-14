@@ -168,7 +168,8 @@ Build the FIRST version of the resume from profile_truth.md, positioned for the 
 """
 
 
-def hiring_manager_prompt(job_description: str, resume: dict, truth: str) -> str:
+def hiring_manager_prompt(job_description: str, resume: dict, truth: str, previous: str | None = None) -> str:
+    follow_up = FOLLOW_UP.format(previous=previous) if previous else ""
     return f"""### Job Description
 {job_description}
 
@@ -177,11 +178,11 @@ def hiring_manager_prompt(job_description: str, resume: dict, truth: str) -> str
 
 ### profile_truth.md (the only source of facts)
 {truth}
-
+{follow_up}
 Evaluate:
 1. Overall rating 1-10 with a short reason.
 2. Strengths (3-5), each with its relevance to the role.
-3. Areas for improvement (3-5): why it matters, and how to address it in the resume truthfully.
+3. Areas for improvement (3-5): why it matters, and how to address it in the resume truthfully. Start each item with a tag: [FIXABLE] when profile_truth.md has the evidence to fix it, or [GAP] when it has none and the item cannot be fixed without inventing.
 4. Missing keywords or ATS gaps, and how to add them truthfully. Check the job's baseline requirements (common tools, concepts, soft skills): flag each one the candidate's experience reasonably supports but the resume does not show.
 5. Presentation feedback (2-3 suggestions).
 6. Coverage: check each position against profile_truth.md and list any documented evidence missing from the resume. The resume must fit ONE page: prefer concise bullets, and flag only high-value missing evidence.
@@ -216,7 +217,8 @@ def editor_prompt(job_description: str, resume: dict, truth: str, feedback: str,
 {feedback}
 
 Steps:
-1. Address every gap and suggestion from the evaluation. A gap the sources cannot cover stays a gap. Never fabricate to raise the rating.
+1. Address every [FIXABLE] item from the evaluation, highest impact first. A [GAP] item, or any gap the sources cannot cover, stays a gap: do not act on it and never fabricate to raise the rating.
+   Keep what already works: do not remove evidence, keywords or wording that the evaluation lists as a strength or that earlier revisions added, unless a cut is needed to fit one page. Make a change only when it fixes an item or fits the page.
 2. The `work` array MUST contain every company and position of profile_truth.md, current first, then reverse chronology. Within each position, vacancy-relevant evidence first, keep only the strongest other evidence. HARD LIMIT: the resume must fit ONE A4 page (about 450-550 words in total): condense, merge and cut the least relevant bullets (never a whole position).
 3. Use strong action verbs. Keep the same JSON schema:
 {JSON_STRUCTURE}
@@ -224,6 +226,17 @@ Steps:
 
 Reply in this exact order:
 1. The final resume as ONE valid JSON object in a fenced ```json block.{audit_reply}
+"""
+
+
+FOLLOW_UP = """
+### Your previous evaluation (of the earlier version of this resume)
+{previous}
+
+The resume was revised after that evaluation. This is a follow-up: judge the NEW version above with the same standard.
+- Under section 3, first state for each earlier [FIXABLE] item: fixed, partly fixed or still open.
+- Same evidence means the same rating. Raise the rating when fixable items were fixed. Lower it only for a real regression (lost evidence, lost keyword, new unsupported claim).
+- Do not add new criticism of something you did not flag before, unless it is a regression or a baseline requirement you missed. Keep [GAP] items as gaps.
 """
 
 

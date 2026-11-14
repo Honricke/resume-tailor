@@ -135,3 +135,11 @@ def test_usage_accumulates():
     u.add(msg)
     assert (u.calls, u.input_tokens, u.output_tokens, u.cache_tokens) == (2, 20, 10, 4)
     assert "$0.0200" in u.summary()
+
+
+def test_hiring_manager_follow_up_sees_previous_evaluation():
+    from resume_tailor import prompts
+    first = prompts.hiring_manager_prompt("job", {}, "truth")
+    follow = prompts.hiring_manager_prompt("job", {}, "truth", previous="OLD EVAL FINAL_RATING: 8.0")
+    assert "OLD EVAL" not in first and "OLD EVAL" in follow
+    assert "[FIXABLE]" in first

@@ -112,6 +112,11 @@ SOURCE_RULES = """SOURCE RULES: profile_truth.md is the ONLY source of facts. It
 - ALWAYS include every academic degree. Never include family, health or other private personal context.
 - Do not attribute general skills to a specific employer without evidence."""
 
+BASIC_REQUIREMENTS = """BASIC REQUIREMENTS (ATS): read the job for its simple, baseline requirements: common tools, protocols and concepts, and soft skills. Use your own judgment to find them. Do not wait for a fixed list.
+- For each one, decide if a professional with this candidate's documented experience and level would reasonably have it. If yes, put it in the resume where ATS and the recruiter will see it: `skills` keywords, the summary, or a bullet that fits. Use the job's own term.
+- It does not need to be written word for word in profile_truth.md. Documented work can imply it. Skills and the summary are the safe places for these baseline items; do not tie one to a specific employer without evidence.
+- Do not add what the documented experience cannot reasonably support, and never add metrics, employers, titles or credentials for it. Such a requirement stays a gap."""
+
 OUTPUT_JSON = (
     "Reply with the resume as ONE valid JSON object in a fenced ```json block, "
     "following this schema:\n" + JSON_STRUCTURE
@@ -140,6 +145,8 @@ def strategist_prompt(job_description: str, truth: str, language: str) -> str:
 {SOURCE_RULES}
 
 {ROLE_FOCUS}
+
+{BASIC_REQUIREMENTS}
 
 ### Target Job Description
 {job_description}
@@ -175,7 +182,7 @@ Evaluate:
 1. Overall rating 1-10 with a short reason.
 2. Strengths (3-5), each with its relevance to the role.
 3. Areas for improvement (3-5): why it matters, and how to address it in the resume truthfully.
-4. Missing keywords or ATS gaps, and how to add them truthfully.
+4. Missing keywords or ATS gaps, and how to add them truthfully. Check the job's baseline requirements (common tools, concepts, soft skills): flag each one the candidate's experience reasonably supports but the resume does not show.
 5. Presentation feedback (2-3 suggestions).
 6. Coverage: check each position against profile_truth.md and list any documented evidence missing from the resume. The resume must fit ONE page: prefer concise bullets, and flag only high-value missing evidence.
 
@@ -193,6 +200,8 @@ def editor_prompt(job_description: str, resume: dict, truth: str, feedback: str,
 {SOURCE_RULES}
 
 {ROLE_FOCUS}
+
+{BASIC_REQUIREMENTS}
 
 ### Job Description
 {job_description}

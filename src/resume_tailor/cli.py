@@ -2,6 +2,7 @@ import argparse
 import re
 import sys
 import threading
+import time
 import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,15 @@ def _new_out_dir(person: str, name: str) -> Path:
     return Path("outputs") / person / f"{_slug(name)}-{stamp}-{uuid.uuid4().hex[:6]}"
 
 
+def _job_path(person_dir: Path, name: str) -> Path:
+    """File name only: looked up in input/<person>/job_descriptions/. The .md extension is optional."""
+    return person_dir / "job_descriptions" / (name if Path(name).suffix else f"{name}.md")
+
+
+def _clock(seconds: float) -> str:
+    return f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
+
+
 def _fail(message: str) -> None:
     print(f"[ERROR] {message}", file=sys.stderr)
     sys.exit(1)
@@ -34,8 +44,8 @@ def _list_roles(person_dir: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="resume-tailor", description="Tailored resume for one job or one role, from profile_truth.md.")
     p.add_argument("--person", required=True, help="Folder name under input/")
-    p.add_argument("--job", nargs="+", help="One or more job description files (default: input/<person>/job_desc.md)")
-    p.add_argument("--role", help="Target role: input/<person>/job_profiles/<role>.md (e.g. devops, fullstack)")
+    p.add_argument("--job", nargs="+", help="One or more file names in input/<person>/job_descriptions/ (.md optional). Default: input/<person>/job_desc.md")
+    p.add_argument("--role", help="Target role: input/<person>/job_profiles/<role>.md (e.g. devops, fullstack). With --job, the role focuses the resume for those jobs")
     p.add_argument("--all", action="store_true", help="One resume per role in input/<person>/job_profiles/")
     p.add_argument("--list-roles", action="store_true", help="List available roles and exit")
     p.add_argument("--workers", type=int, default=4, help="Resumes generated in parallel (default 4)")
@@ -47,8 +57,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.workers < 1:
         _fail("workers must be >= 1")
-    if sum(bool(x) for x in (args.job, args.role, args.all)) > 1:
-        _fail("Use only one of --job, --role, --all")
+    if args.all and (args.job or args.role):
+        _fail("--all cannot be combined with --job or --role")
     if args.lang not in LANGUAGES:
         _fail(f"Unsupported language '{args.lang}'. Supported: {', '.join(LANGUAGES)}")
     try:
@@ -67,12 +77,17 @@ def main(argv: list[str] | None = None) -> None:
         if not roles:
             _fail(f"No roles in {person_dir / 'job_profiles'}")
         job_paths = [person_dir / "job_profiles" / f"{r}.md" for r in roles]
-    elif args.role:
-        job_paths = [person_dir / "job_profiles" / f"{args.role}.md"]
-        if not job_paths[0].is_file():
-            _fail(f"Role '{args.role}' not found. Available: {', '.join(roles) or 'none'}")
     else:
-        job_paths = [Path(j) for j in args.job] if args.job else [person_dir / "job_desc.md"]
+        job_paths = [_job_path(person_dir, j) for j in args.job] if args.job else None
+    role_path = None
+    if args.role:
+        role_path = person_dir / "job_profiles" / f"{args.role}.md"
+        if not role_path.is_file():
+            _fail(f"Role '{args.role}' not found. Available: {', '.join(roles) or 'none'}")
+        if job_paths is None:  # role alone: the role file is the job description
+            job_paths, role_path = [role_path], None
+    elif job_paths is None:
+        job_paths = [person_dir / "job_desc.md"]
     for path in [truth_path, *job_paths]:
         if not path.is_file():
             _fail(f"File not found: {path}")
@@ -83,21 +98,33 @@ def main(argv: list[str] | None = None) -> None:
     from .render import render
 
     truth = truth_path.read_text(encoding="utf-8")
+    role_text = role_path.read_text(encoding="utf-8") if role_path else None
     print_lock = threading.Lock()
 
     def generate(job_path: Path) -> str | None:
         """Returns the job name on failure. Output lines are prefixed so parallel runs stay readable."""
         out_dir = _new_out_dir(args.person, job_path.stem)
+        started = time.monotonic()
+
+        def log(message: str) -> None:
+            with print_lock:
+                print(f"[{job_path.stem}] [{_clock(time.monotonic() - started)}] {message}...", file=sys.stderr, flush=True)
+
         lines: list[tuple[str, bool]] = []
         failed = False
         try:
-            result = run(truth, job_path.read_text(encoding="utf-8"), args.lang, cfg, out_dir, ask)
+            job_text = job_path.read_text(encoding="utf-8")
+            if role_text:
+                job_text = (f"### Target role profile ({args.role}): position the resume as this role\n{role_text}\n\n"
+                            f"### Specific job posting: match its requirements within that role\n{job_text}")
+            result = run(truth, job_text, args.lang, cfg, out_dir, ask, log)
             lines.append((result.refinement.summary(), False))
             try:
                 lines.append((f"PDF: {render(result.resume, out_dir, args.lang)}", False))
             except RuntimeError as exc:
                 lines.append((f"[WARN] {exc}", True))
             lines.append((f"Output: {out_dir}", False))
+            lines.append((f"Time: {_clock(time.monotonic() - started)}", False))
         except Exception as exc:  # SDK/login/network/invalid JSON: partial files stay in out_dir
             failed = True
             lines.append((f"[ERROR] {type(exc).__name__}: {exc}\n  If this is a login problem, run `claude` and use /login. Partial output (if any): {out_dir}", True))
@@ -106,9 +133,11 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"[{job_path.stem}] {text}", file=sys.stderr if is_err else sys.stdout)
         return job_path.stem if failed else None
 
+    total_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=min(args.workers, len(job_paths))) as pool:
         failed = [name for name in pool.map(generate, job_paths) if name]
     print(usage.summary())
+    print(f"Total time: {_clock(time.monotonic() - total_start)}")
     if failed:
         _fail(f"Failed: {', '.join(failed)}")
 

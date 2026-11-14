@@ -12,6 +12,7 @@ from .schema import InvalidResume, extract_json
 
 MAX_FIT_ATTEMPTS = 1
 Ask = Callable[[str, str, str | None], str]
+Log = Callable[[str], None]
 _AUDIT_RE = re.compile(r"^##\s*Coverage audit.*", re.IGNORECASE | re.MULTILINE | re.DOTALL)
 
 
@@ -48,6 +49,7 @@ def _report(refinement: RefinementResult, audit: str) -> str:
 
 def run(
     truth: str, job_description: str, language: str, cfg: Config, out_dir: Path, ask: Ask,
+    log: Log = lambda _msg: None,
 ) -> Result:
     out_dir.mkdir(parents=True, exist_ok=True)
     resume_path = out_dir / "resume.json"
@@ -62,6 +64,7 @@ def run(
     state = {"resume": None, "audit": ""}
 
     def evaluate() -> str:
+        log("Hiring manager evaluating")
         return ask(
             prompts.HIRING_MANAGER_SYSTEM,
             prompts.hiring_manager_prompt(job_description, state["resume"], truth),
@@ -69,6 +72,7 @@ def run(
         )
 
     def revise(feedback: str, with_audit: bool = True) -> None:
+        log("Editor writing the resume")
         resume, reply = _ask_resume(
             ask, prompts.EDITOR_SYSTEM,
             prompts.editor_prompt(job_description, state["resume"], truth, feedback, language, audit=with_audit),
@@ -78,6 +82,7 @@ def run(
         save(resume, state["audit"])
 
     # 1. Strategist: first version from profile_truth.md
+    log("Strategist drafting")
     state["resume"], _ = _ask_resume(
         ask, prompts.STRATEGIST_SYSTEM,
         prompts.strategist_prompt(job_description, truth, language), cfg.model,
@@ -108,6 +113,7 @@ def run(
         pages = page_count(state["resume"], language)
         if pages <= 1:
             break
+        log(f"Condensing to one page ({pages} pages)")
         revise(
             f"LAYOUT: the rendered resume has {pages} pages. It MUST fit ONE A4 page. "
             "Cut the least relevant bullets, shorten the summary and merge similar bullets. "

@@ -105,7 +105,7 @@ def run(
 
     # 5. One-page limit: ask the editor to condense until the PDF fits (render trims as a last resort)
     for _ in range(MAX_FIT_ATTEMPTS):
-        pages = page_count(state["resume"])
+        pages = page_count(state["resume"], language)
         if pages <= 1:
             break
         revise(

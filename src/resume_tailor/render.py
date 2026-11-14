@@ -12,6 +12,19 @@ from reportlab.platypus import HRFlowable, KeepTogether, ListFlowable, ListItem,
 
 FONT, BOLD, ITALIC = "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
 
+LABELS = {
+    "en": {"summary": "Summary", "skills": "Skills", "work": "Work Experience", "projects": "Projects",
+           "education": "Education", "certs": "Certifications", "languages": "Languages", "interests": "Interests",
+           "stack": "Stack", "gpa": "GPA", "courses": "Courses", "in": " in ", "doc": "Resume"},
+    "pt": {"summary": "Resumo", "skills": "Habilidades", "work": "Experiência Profissional", "projects": "Projetos",
+           "education": "Formação Acadêmica", "certs": "Certificações", "languages": "Idiomas", "interests": "Interesses",
+           "stack": "Stack", "gpa": "CRA", "courses": "Disciplinas", "in": " em ", "doc": "Currículo"},
+}
+
+
+def _labels(lang: str) -> dict:
+    return LABELS["en" if lang.lower().startswith("en") else "pt"]
+
 _BASE = ParagraphStyle("base", fontName=FONT, fontSize=9.5, leading=12.5)
 STYLES = {
     "name": ParagraphStyle("name", parent=_BASE, fontName=BOLD, fontSize=18, leading=22, alignment=TA_CENTER),
@@ -78,7 +91,8 @@ def _location(loc) -> str:
     return _e(loc)
 
 
-def build_story(r: dict) -> list:
+def build_story(r: dict, lang: str = "pt-BR") -> list:
+    L = _labels(lang)
     b = r.get("basics", {})
     s = [_p(_e(b.get("name")), "name")]
     if b.get("label"):
@@ -89,48 +103,48 @@ def build_story(r: dict) -> list:
     s.append(_p(_join(contact), "contact"))
 
     if b.get("summary"):
-        s += _heading("Summary") + [_p(_e(b["summary"]))]
+        s += _heading(L["summary"]) + [_p(_e(b["summary"]))]
 
     if r.get("skills"):
-        s += _heading("Skills")
+        s += _heading(L["skills"])
         for sk in r["skills"]:
             kw = ", ".join(_e(k) for k in sk.get("keywords") or [])
             s.append(_p(f"<b>{_e(sk.get('name'))}:</b> {kw}" if kw else f"<b>{_e(sk.get('name'))}</b>"))
 
     if r.get("work"):
-        s += _heading("Work Experience")
+        s += _heading(L["work"])
         for j in r["work"]:
             title = _join([f"<b>{_e(j.get('position'))}</b>", _e(j.get("name"))], ", ")
             sub = _join([_dates(j), _location(j.get("location"))])
             s += _entry(title, sub, j.get("highlights"))
 
     if r.get("projects"):
-        s += _heading("Projects")
+        s += _heading(L["projects"])
         for p in r["projects"]:
             kw = ", ".join(_e(k) for k in p.get("keywords") or [])
-            sub = _join([_e(p.get("url")), f"Stack: {kw}" if kw else ""])
+            sub = _join([_e(p.get("url")), f"{L['stack']}: {kw}" if kw else ""])
             s += _entry(f"<b>{_e(p.get('name'))}</b>", sub, ([p["description"]] if p.get("description") else []) + list(p.get("highlights") or []))
 
     if r.get("education"):
-        s += _heading("Education")
+        s += _heading(L["education"])
         for e in r["education"]:
-            title = _join([f"<b>{_e(e.get('institution'))}</b>", _e(_join([e.get("studyType"), e.get("area")], " in "))], ", ")
-            sub = _join([_dates(e), _location(e.get("location")), f"GPA: {_e(e['gpa'])}" if e.get("gpa") else ""])
-            courses = [f"Courses: {', '.join(e['courses'])}"] if e.get("courses") else []
+            title = _join([f"<b>{_e(e.get('institution'))}</b>", _e(_join([e.get("studyType"), e.get("area")], L["in"]))], ", ")
+            sub = _join([_dates(e), _location(e.get("location")), f"{L['gpa']}: {_e(e['gpa'])}" if e.get("gpa") else ""])
+            courses = [f"{L['courses']}: {', '.join(e['courses'])}"] if e.get("courses") else []
             s += _entry(title, sub, courses)
 
     if r.get("certificates"):
-        s += _heading("Certifications")
+        s += _heading(L["certs"])
         for c in r["certificates"]:
             s.append(_p(_join([f"<b>{_e(c.get('name'))}</b>", _e(c.get("issuer")), _e(c.get("date"))], " - ")))
 
     if r.get("languages"):
-        s += _heading("Languages")
+        s += _heading(L["languages"])
         for lg in r["languages"]:
             s.append(_p(_join([_e(lg.get("language")), _e(lg.get("fluency"))], " - ") if isinstance(lg, dict) else _e(lg)))
 
     if r.get("interests"):
-        s += _heading("Interests")
+        s += _heading(L["interests"])
         items = []
         for i in r["interests"]:
             if isinstance(i, dict):
@@ -142,20 +156,20 @@ def build_story(r: dict) -> list:
     return s
 
 
-def _build(resume: dict, target) -> int:
+def _build(resume: dict, target, lang: str) -> int:
     """Builds the PDF into target (path or file object) and returns the page count."""
     name = str(resume.get("basics", {}).get("name", "Resume"))
     doc = SimpleDocTemplate(
-        target, pagesize=A4, title=f"{name} - Resume", author=name,
+        target, pagesize=A4, title=f"{name} - {_labels(lang)['doc']}", author=name,
         leftMargin=14 * mm, rightMargin=14 * mm, topMargin=12 * mm, bottomMargin=12 * mm,
     )
-    doc.build(build_story(resume))
+    doc.build(build_story(resume, lang))
     return doc.page
 
 
-def page_count(resume: dict) -> int:
+def page_count(resume: dict, lang: str = "pt-BR") -> int:
     _scale(1.0)
-    return _build(resume, BytesIO())
+    return _build(resume, BytesIO(), lang)
 
 
 def _trim_one_bullet(resume: dict) -> bool:
@@ -172,26 +186,26 @@ def _trim_one_bullet(resume: dict) -> bool:
     return True
 
 
-def fit_one_page(resume: dict) -> dict:
+def fit_one_page(resume: dict, lang: str = "pt-BR") -> dict:
     """Returns a resume that renders on ONE page: shrinks type first, then drops the least important bullets."""
     resume = copy.deepcopy(resume)
     for factor in (1.0, 0.95, 0.9, 0.86):
         _scale(factor)
-        if _build(resume, BytesIO()) <= 1:
+        if _build(resume, BytesIO(), lang) <= 1:
             return resume
     while _trim_one_bullet(resume):
-        if _build(resume, BytesIO()) <= 1:
+        if _build(resume, BytesIO(), lang) <= 1:
             return resume
     resume["projects"] = []
     return resume
 
 
-def render(resume: dict, out_dir: Path) -> Path:
+def render(resume: dict, out_dir: Path, lang: str = "pt-BR") -> Path:
     """Writes out_dir/resume.pdf (always one page) with reportlab and returns its path."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     pdf = out_dir / "resume.pdf"
-    fitted = fit_one_page(resume)
-    _build(fitted, str(pdf))
+    fitted = fit_one_page(resume, lang)
+    _build(fitted, str(pdf), lang)
     _scale(1.0)
     return pdf

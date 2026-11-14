@@ -100,6 +100,12 @@ def _voice(language: str) -> str:
     return _VOICE_EN if language.lower().startswith("en") else _VOICE_PTBR
 
 
+ROLE_FOCUS = """ROLE FOCUS: the resume targets ONE role. Do not hedge between roles.
+- `basics.label`, the summary and the skills order must present a single professional identity: the target role.
+- TRINITY HUB EXCEPTION: in the Trinity Hub position, show ONLY the target role. The position title names only the target role (DevOps target: "DevOps"; Full-Stack target: "Engenheiro Full-Stack"), and the bullets keep only evidence of that role. Drop the other role's bullets entirely; the position itself stays.
+- In the other positions, evidence for other roles stays (true, never removed from a position) but goes last and short; skills and keywords outside the target stay only as brief secondary items.
+- Do not mention the other role by name or list its stack as an equal strength."""
+
 SOURCE_RULES = """SOURCE RULES: profile_truth.md is the ONLY source of facts. Its corrections and exclusions are final.
 - NEVER invent companies, titles, dates, metrics, skills or credentials. A number may appear only if that exact number is in profile_truth.md.
 - Ignore placeholders and unconfirmed credentials. Keep expired certifications marked as expired and education in progress marked as in progress.
@@ -132,6 +138,8 @@ def strategist_prompt(job_description: str, truth: str, language: str) -> str:
     return f"""{_voice(language)}
 
 {SOURCE_RULES}
+
+{ROLE_FOCUS}
 
 ### Target Job Description
 {job_description}
@@ -183,6 +191,8 @@ def editor_prompt(job_description: str, resume: dict, truth: str, feedback: str,
     return f"""{_voice(language)}
 
 {SOURCE_RULES}
+
+{ROLE_FOCUS}
 
 ### Job Description
 {job_description}

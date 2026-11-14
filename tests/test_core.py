@@ -64,7 +64,7 @@ def test_config_precedence(monkeypatch):
     assert (cfg.target, cfg.max_revisions) == (7.0, 1)
     monkeypatch.delenv("RESUME_TARGET"); monkeypatch.delenv("RESUME_MAX_REVISIONS"); monkeypatch.delenv("RESUME_REFINE")
     cfg = config.resolve(None, None, None)
-    assert (cfg.refine, cfg.target, cfg.max_revisions) == (False, 8.0, 1)
+    assert (cfg.refine, cfg.target, cfg.max_revisions) == (False, 8.5, 1)
 
 
 def _fake_ask(rating_cycle):

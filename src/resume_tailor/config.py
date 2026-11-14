@@ -2,8 +2,9 @@ import os
 from dataclasses import dataclass
 
 LANGUAGES = ("pt-BR", "en")
-DEFAULT_TARGET = 8.0
+DEFAULT_TARGET = 8.5
 DEFAULT_MAX_REVISIONS = 1
+DEFAULT_MODEL = "sonnet"
 DEFAULT_REVIEW_MODEL = "sonnet"  # hiring-manager steps only read and rate: a cheaper model is enough
 
 
@@ -27,7 +28,7 @@ def resolve(refine: bool | None, target: float | None, max_revisions: int | None
         target=target if target is not None else float(os.getenv("RESUME_TARGET") or DEFAULT_TARGET),
         max_revisions=max_revisions if max_revisions is not None
         else int(os.getenv("RESUME_MAX_REVISIONS") or DEFAULT_MAX_REVISIONS),
-        model=os.getenv("RESUME_MODEL") or None,
+        model=os.getenv("RESUME_MODEL") or DEFAULT_MODEL,
         review_model=os.getenv("RESUME_REVIEW_MODEL") or DEFAULT_REVIEW_MODEL,
     )
     if not 1 <= cfg.target <= 10:

@@ -1,0 +1,25 @@
+[project]
+name = "resume-tailor"
+version = "0.1.0"
+description = "Tailored resume for one job, from profile_truth.md, using the Claude Agent SDK"
+requires-python = ">=3.10"
+dependencies = [
+    "claude-agent-sdk",
+    "reportlab>=5.1.0",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[project.scripts]
+resume-tailor = "resume_tailor.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
